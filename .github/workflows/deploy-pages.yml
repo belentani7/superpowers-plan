@@ -1,0 +1,55 @@
+# Compila el sitio Next.js y lo publica en GitHub Pages como export estatico.
+#
+# POR QUE HACE FALTA: el repositorio trae codigo fuente, no HTML compilado.
+# Si Pages sirve la raiz, el navegador recibe TypeScript y la pagina sale
+# EN BLANCO. Aqui se compila y se publica solo el resultado.
+#
+# NOTA: Next necesita "output: export" para generar HTML estatico. Las rutas
+# que dependan de servidor o base de datos en tiempo de peticion no
+# funcionaran en Pages; el resto del sitio si.
+name: Deploy Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-audit --no-fund --legacy-peer-deps
+      - name: Export estatico
+        run: npx next build
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+      - name: Localiza la salida
+        id: out
+        run: |
+          if [ -d out ]; then echo "dir=out" >> "$GITHUB_OUTPUT"; else echo "dir=.next" >> "$GITHUB_OUTPUT"; fi
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: ${{ steps.out.outputs.dir }}
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
